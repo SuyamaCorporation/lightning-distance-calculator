@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>雷までの距離 計算ツール</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: #0d0d1a; color: #e2e8f0; font-family: 'Segoe UI', sans-serif; }
+  input[type=range] { accent-color: #7c3aed; }
+  @keyframes lightning { 0%,100%{opacity:0} 10%,30%{opacity:1} 20%,40%{opacity:0} }
+  .lightning-anim { animation: lightning 1s infinite; }
+  @keyframes pulse-red { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.7)} 50%{box-shadow:0 0 0 12px rgba(239,68,68,0)} }
+  .pulse-red { animation: pulse-red 1s infinite; }
+</style>
+</head>
+<body class="min-h-screen p-4">
+<div class="max-w-5xl mx-auto">
+  <h1 class="text-2xl font-bold text-yellow-300 mb-1">⚡ 雷までの距離 計算ツール</h1>
+  <p class="text-gray-400 text-sm mb-6">稲妻から雷鳴までの秒数と気温から距離を計算。安全距離ガイドライン付き。</p>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <!-- 入力パネル -->
+    <div class="bg-gray-800 rounded-xl p-5">
+      <h2 class="text-lg font-semibold text-yellow-200 mb-4">パラメータ入力</h2>
+
+      <div class="space-y-5">
+        <div>
+          <label for="seconds-input" class="flex justify-between text-sm text-gray-300 mb-1">
+            <span>稲妻から雷鳴までの秒数</span>
+            <span id="sec-display" class="font-mono text-yellow-300">5.0 秒</span>
+          </label>
+          <input type="range" id="sec-slider" min="0.1" max="30" step="0.1" value="5.0"
+            oninput="syncSecInput()" class="w-full h-3 rounded mb-2" aria-label="秒数スライダー">
+          <input type="number" id="seconds-input" min="0.1" max="30" step="0.1" value="5.0"
+            oninput="syncSecSlider()"
+            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+            aria-label="秒数（数値入力）">
+        </div>
+
+        <div>
+          <label for="temp-input" class="flex justify-between text-sm text-gray-300 mb-1">
+            <span>気温</span>
+            <span id="temp-display" class="font-mono text-blue-300">20 °C</span>
+          </label>
+          <input type="range" id="temp-slider" min="-20" max="40" step="1" value="20"
+            oninput="syncTempInput()" class="w-full h-3 rounded mb-2" aria-label="気温スライダー">
+          <input type="number" id="temp-input" min="-20" max="40" step="0.5" value="20"
+            oninput="syncTempSlider()"
+            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-yellow-400"
+            aria-label="気温（数値入力）">
+        </div>
+      </div>
+
+      <!-- ストップウォッチ -->
+      <div class="mt-6 bg-gray-700 rounded-xl p-4">
+        <h3 class="text-sm font-semibold text-gray-300 mb-3">⏱ リアルタイム計測</h3>
+        <p class="text-xs text-gray-400 mb-3">稲妻を見たら「スタート」、雷鳴を聞いたら「ストップ」</p>
+        <div id="stopwatch-display" class="text-4xl font-mono text-center text-yellow-300 mb-3">0.0 秒</div>
+        <div class="flex gap-3">
+          <button id="sw-start" onclick="swStart()"
+            class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-bold py-2 rounded-lg transition-colors"
+            aria-label="ストップウォッチをスタート">稲妻！スタート</button>
+          <button id="sw-stop" onclick="swStop()" disabled
+            class="flex-1 bg-gray-600 text-gray-400 font-bold py-2 rounded-lg cursor-not-allowed"
+            aria-label="ストップウォッチを停止">雷鳴！ストップ</button>
+        </div>
+        <button onclick="swReset()"
+          class="mt-2 w-full bg-gray-600 hover:bg-gray-500 text-gray-300 py-1 rounded-lg text-sm transition-colors"
+          aria-label="ストップウォッチをリセット">リセット</button>
+      </div>
+    </div>
+
+    <!-- 結果表示 -->
+    <div class="bg-gray-800 rounded-xl p-5">
+      <h2 class="text-lg font-semibold text-yellow-200 mb-4">計算結果</h2>
+
+      <div class="space-y-3 mb-5">
+        <div class="bg-gray-700 rounded-lg p-3">
+          <div class="text-gray-400 text-xs mb-1">音速（現在の気温）</div>
+          <div id="sound-speed" class="text-2xl font-bold text-blue-300">343.5</div>
+          <div class="text-gray-500 text-xs">m/s</div>
+        </div>
+        <div id="dist-card" class="rounded-lg p-4">
+          <div class="text-gray-400 text-xs mb-1">雷までの距離</div>
+          <div id="distance" class="text-4xl font-bold text-white">1717</div>
+          <div class="text-gray-400 text-xs">m（<span id="distance-km">1.72</span> km）</div>
+        </div>
+      </div>
+
+      <!-- 安全レベル -->
+      <div id="safety-card" class="rounded-xl p-4 mb-4">
+        <div id="safety-icon" class="text-3xl mb-2">⚠️</div>
+        <div id="safety-level" class="text-xl font-bold mb-1">注意</div>
+        <div id="safety-msg" class="text-sm text-gray-300"></div>
+      </div>
+
+      <!-- 安全ガイドライン -->
+      <div class="bg-gray-700 rounded-lg p-3 text-xs">
+        <div class="font-semibold text-gray-300 mb-2">安全距離ガイドライン（30:30ルール）</div>
+        <div class="space-y-1">
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500 inline-block"></span><span>3km未満（10秒以内）: <strong>即座に屋内避難！</strong></span></div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-yellow-500 inline-block"></span><span>3〜10km（10〜30秒）: 注意・屋内待機推奨</span></div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-green-500 inline-block"></span><span>10km超（30秒超）: 比較的安全</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Canvas グラフ -->
+  <div class="bg-gray-800 rounded-xl p-5">
+    <h2 class="text-lg font-semibold text-yellow-200 mb-4">気温 vs 音速 グラフ（-20℃〜+40℃）</h2>
+    <canvas id="speed-graph" width="800" height="250" class="w-full rounded-lg bg-gray-900"
+      aria-label="気温と音速の関係グラフ"></canvas>
+  </div>
+</div>
+
+<script>
+let swInterval = null;
+let swStartTime = null;
+let swRunning = false;
+
+function soundSpeed(t) { return 331.3 + 0.606 * t; }
+
+function calcAndUpdate() {
+  const sec = parseFloat(document.getElementById('seconds-input').value) || 0;
+  const temp = parseFloat(document.getElementById('temp-input').value) || 20;
+  const vSound = soundSpeed(temp);
+  const dist = sec * vSound;
+  const distKm = dist / 1000;
+
+  document.getElementById('sound-speed').textContent = vSound.toFixed(1);
+  document.getElementById('distance').textContent = Math.round(dist);
+  document.getElementById('distance-km').textContent = distKm.toFixed(2);
+
+  const distCard = document.getElementById('dist-card');
+  const safetyCard = document.getElementById('safety-card');
+  const safetyIcon = document.getElementById('safety-icon');
+  const safetyLevel = document.getElementById('safety-level');
+  const safetyMsg = document.getElementById('safety-msg');
+
+  if (distKm < 3) {
+    distCard.className = 'rounded-lg p-4 bg-red-900 bg-opacity-60 border border-red-500 pulse-red';
+    safetyCard.className = 'rounded-xl p-4 mb-4 bg-red-900 bg-opacity-60 border border-red-500';
+    safetyIcon.textContent = '🚨';
+    safetyLevel.textContent = '危険！即座に避難';
+    safetyLevel.className = 'text-xl font-bold mb-1 text-red-400';
+    safetyMsg.textContent = '雷が3km以内です。直ちに建物内または車内に避難してください。落雷の危険があります。';
+  } else if (distKm < 10) {
+    distCard.className = 'rounded-lg p-4 bg-yellow-900 bg-opacity-60 border border-yellow-500';
+    safetyCard.className = 'rounded-xl p-4 mb-4 bg-yellow-900 bg-opacity-60 border border-yellow-500';
+    safetyIcon.textContent = '⚠️';
+    safetyLevel.textContent = '注意・屋内待機推奨';
+    safetyLevel.className = 'text-xl font-bold mb-1 text-yellow-400';
+    safetyMsg.textContent = '雷が3〜10kmの範囲にいます。屋内または車内で待機することを推奨します。';
+  } else {
+    distCard.className = 'rounded-lg p-4 bg-green-900 bg-opacity-60 border border-green-500';
+    safetyCard.className = 'rounded-xl p-4 mb-4 bg-green-900 bg-opacity-60 border border-green-500';
+    safetyIcon.textContent = '✅';
+    safetyLevel.textContent = '比較的安全';
+    safetyLevel.className = 'text-xl font-bold mb-1 text-green-400';
+    safetyMsg.textContent = '雷は10km以上離れています。ただし雷雲が近づく可能性があるため引き続き注意してください。';
+  }
+
+  drawGraph(temp);
+}
+
+function syncSecInput() {
+  const val = document.getElementById('sec-slider').value;
+  document.getElementById('seconds-input').value = val;
+  document.getElementById('sec-display').textContent = parseFloat(val).toFixed(1) + ' 秒';
+  calcAndUpdate();
+}
+function syncSecSlider() {
+  const val = document.getElementById('seconds-input').value;
+  document.getElementById('sec-slider').value = val;
+  document.getElementById('sec-display').textContent = parseFloat(val).toFixed(1) + ' 秒';
+  calcAndUpdate();
+}
+function syncTempInput() {
+  const val = document.getElementById('temp-slider').value;
+  document.getElementById('temp-input').value = val;
+  document.getElementById('temp-display').textContent = val + ' °C';
+  calcAndUpdate();
+}
+function syncTempSlider() {
+  const val = document.getElementById('temp-input').value;
+  document.getElementById('temp-slider').value = val;
+  document.getElementById('temp-display').textContent = parseFloat(val).toFixed(0) + ' °C';
+  calcAndUpdate();
+}
+
+function swStart() {
+  if (swRunning) return;
+  swRunning = true;
+  swStartTime = Date.now();
+  document.getElementById('sw-start').disabled = true;
+  document.getElementById('sw-start').className = 'flex-1 bg-gray-600 text-gray-400 font-bold py-2 rounded-lg cursor-not-allowed';
+  document.getElementById('sw-stop').disabled = false;
+  document.getElementById('sw-stop').className = 'flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-lg transition-colors';
+  swInterval = setInterval(() => {
+    const elapsed = (Date.now() - swStartTime) / 1000;
+    document.getElementById('stopwatch-display').textContent = elapsed.toFixed(1) + ' 秒';
+  }, 100);
+}
+
+function swStop() {
+  if (!swRunning) return;
+  clearInterval(swInterval);
+  swRunning = false;
+  const elapsed = (Date.now() - swStartTime) / 1000;
+  document.getElementById('sec-slider').value = Math.min(elapsed, 30);
+  document.getElementById('seconds-input').value = elapsed.toFixed(1);
+  document.getElementById('sec-display').textContent = elapsed.toFixed(1) + ' 秒';
+  document.getElementById('sw-start').disabled = false;
+  document.getElementById('sw-start').className = 'flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-bold py-2 rounded-lg transition-colors';
+  document.getElementById('sw-stop').disabled = true;
+  document.getElementById('sw-stop').className = 'flex-1 bg-gray-600 text-gray-400 font-bold py-2 rounded-lg cursor-not-allowed';
+  calcAndUpdate();
+}
+
+function swReset() {
+  clearInterval(swInterval);
+  swRunning = false;
+  swStartTime = null;
+  document.getElementById('stopwatch-display').textContent = '0.0 秒';
+  document.getElementById('sw-start').disabled = false;
+  document.getElementById('sw-start').className = 'flex-1 bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-bold py-2 rounded-lg transition-colors';
+  document.getElementById('sw-stop').disabled = true;
+  document.getElementById('sw-stop').className = 'flex-1 bg-gray-600 text-gray-400 font-bold py-2 rounded-lg cursor-not-allowed';
+}
+
+function drawGraph(currentTemp) {
+  const canvas = document.getElementById('speed-graph');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const pad = { top: 20, right: 30, bottom: 40, left: 60 };
+  const gW = W - pad.left - pad.right;
+  const gH = H - pad.top - pad.bottom;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#111827';
+  ctx.fillRect(0, 0, W, H);
+
+  const minT = -20, maxT = 40;
+  const minV = soundSpeed(minT), maxV = soundSpeed(maxT);
+
+  // Grid
+  ctx.strokeStyle = '#374151'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = pad.top + gH * (1 - i / 5);
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + gW, y); ctx.stroke();
+    const v = minV + (maxV - minV) * i / 5;
+    ctx.fillStyle = '#9ca3af'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(v.toFixed(0) + ' m/s', pad.left - 5, y + 4);
+  }
+  for (let t = minT; t <= maxT; t += 10) {
+    const x = pad.left + ((t - minT) / (maxT - minT)) * gW;
+    ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + gH); ctx.stroke();
+    ctx.fillStyle = '#9ca3af'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(t + '°C', x, pad.top + gH + 18);
+  }
+
+  ctx.fillStyle = '#d1d5db'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('気温 (°C)', pad.left + gW / 2, H - 5);
+  ctx.save(); ctx.translate(15, pad.top + gH / 2); ctx.rotate(-Math.PI / 2);
+  ctx.fillText('音速 (m/s)', 0, 0); ctx.restore();
+
+  // Line
+  ctx.beginPath(); ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 2.5;
+  for (let i = 0; i <= 200; i++) {
+    const t = minT + (maxT - minT) * i / 200;
+    const v = soundSpeed(t);
+    const x = pad.left + ((t - minT) / (maxT - minT)) * gW;
+    const y = pad.top + gH * (1 - (v - minV) / (maxV - minV));
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Current temp marker
+  const cx = pad.left + ((currentTemp - minT) / (maxT - minT)) * gW;
+  const cv = soundSpeed(currentTemp);
+  const cy = pad.top + gH * (1 - (cv - minV) / (maxV - minV));
+  ctx.beginPath(); ctx.fillStyle = '#fbbf24'; ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fbbf24'; ctx.font = '12px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText(cv.toFixed(1) + ' m/s @ ' + currentTemp + '°C', cx + 8, cy - 5);
+}
+
+calcAndUpdate();
+</script>
+</body>
+</html>
